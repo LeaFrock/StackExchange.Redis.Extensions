@@ -26,18 +26,15 @@ public sealed partial class RedisConnectionPoolManager : IRedisConnectionPoolMan
     /// <summary>
     /// Initializes a new instance of the <see cref="RedisConnectionPoolManager"/> class.
     /// </summary>
-    /// <param name="redisConfiguration">The redis configuration.</param>
+    /// <param name="redisConnPool">The redis connection pool.</param>
     /// <param name="logger">The logger.</param>
-    public RedisConnectionPoolManager(RedisConfiguration redisConfiguration, ILogger<RedisConnectionPoolManager>? logger = null)
+    public RedisConnectionPoolManager(RedisConnectionPool redisConnPool, ILogger<RedisConnectionPoolManager>? logger = null)
     {
-        this.redisConfiguration = redisConfiguration ?? throw new ArgumentNullException(nameof(redisConfiguration));
+        this.redisConfiguration = redisConnPool.Configuration;
         this.logger = logger ?? NullLogger<RedisConnectionPoolManager>.Instance;
 
         lock (@lock)
-        {
-            connections = new IStateAwareConnection[redisConfiguration.PoolSize];
-            EmitConnections();
-        }
+            connections = redisConnPool.Initialize(this.logger);
     }
 
     /// <inheritdoc/>
@@ -123,18 +120,5 @@ public sealed partial class RedisConnectionPoolManager : IRedisConnectionPoolMan
             ActiveConnections = activeConnections,
             InvalidConnections = invalidConnections
         };
-    }
-
-    private void EmitConnections()
-    {
-        for (var i = 0; i < redisConfiguration.PoolSize; i++)
-        {
-            var multiplexer = ConnectionMultiplexer.Connect(redisConfiguration.ConfigurationOptions);
-
-            if (redisConfiguration.ProfilingSessionProvider != null)
-                multiplexer.RegisterProfiler(redisConfiguration.ProfilingSessionProvider);
-
-            connections[i] = redisConfiguration.StateAwareConnectionFactory(multiplexer, logger);
-        }
     }
 }
